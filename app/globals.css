@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0d1117;
+  --ink-soft: #131a24;
+  --paper: #f5f3ee;
+  --line: #2a3441;
+  --long: #3ba776;
+  --short: #c85c4f;
+  --neutral: #8b93a1;
+  --amber: #d4a24c;
+}
+
+body {
+  background-color: var(--ink);
+  color: var(--paper);
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+.font-display {
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 3px 3px;
+}

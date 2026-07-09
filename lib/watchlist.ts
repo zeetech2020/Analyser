@@ -1,0 +1,18 @@
+export const WATCHLIST: string[] = [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "BNBUSDT",
+  "XRPUSDT",
+  "ADAUSDT",
+  "LTCUSDT",
+  "DOGEUSDT",
+  "ATOMUSDT",
+  "CRVUSDT",
+  "HYPEUSDT",
+  "LINKUSDT",
+  "AVAXUSDT",
+  "NEARUSDT",
+  "DOTUSDT",
+  "UNIUSDT",
+];

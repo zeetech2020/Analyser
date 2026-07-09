@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/alert-cron",
+      "schedule": "0 6 * * *"
+    }
+  ],
+  "functions": {
+    "app/api/scan/route.ts": {
+      "regions": ["sin1"]
+    },
+    "app/api/alert-cron/route.ts": {
+      "regions": ["sin1"]
+    }
+  }
+}
