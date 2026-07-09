@@ -11,6 +11,10 @@ const INTERVAL_MAP: Record<string, string> = {
   "1w": "W",
 };
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchKlines(
   symbol: string,
   timeframe: keyof typeof INTERVAL_MAP,
@@ -19,35 +23,47 @@ export async function fetchKlines(
   const interval = INTERVAL_MAP[timeframe];
   const url = `${BYBIT_BASE}/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
 
-  const res = await fetch(url, { next: { revalidate: 0 } });
-  if (!res.ok) {
+  const maxAttempts = 4;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url, { next: { revalidate: 0 } });
+
+    if (res.ok) {
+      const json = await res.json();
+
+      if (json.retCode !== 0) {
+        throw new Error(`Bybit API returned error for ${symbol}: ${json.retMsg}`);
+      }
+
+      // Bybit returns newest-first: [start, open, high, low, close, volume, turnover]
+      const rows: string[][] = json.result?.list ?? [];
+
+      return rows
+        .map((r) => ({
+          time: Number(r[0]),
+          open: Number(r[1]),
+          high: Number(r[2]),
+          low: Number(r[3]),
+          close: Number(r[4]),
+          volume: Number(r[5]),
+        }))
+        .reverse(); // oldest-first for easier structure analysis
+    }
+
+    // 403 from Bybit's CDN layer is usually a temporary shared-IP throttle,
+    // not a permanent block — back off and retry a few times before giving up.
+    if (res.status === 403 && attempt < maxAttempts) {
+      lastError = new Error(`Bybit API error for ${symbol} ${timeframe}: ${res.status}`);
+      const backoff = 1000 * attempt; // 1s, 2s, 3s...
+      await sleep(backoff);
+      continue;
+    }
+
     throw new Error(`Bybit API error for ${symbol} ${timeframe}: ${res.status}`);
   }
-  const json = await res.json();
 
-  if (json.retCode !== 0) {
-    throw new Error(`Bybit API returned error for ${symbol}: ${json.retMsg}`);
-  }
-
-  // Bybit returns newest-first: [start, open, high, low, close, volume, turnover]
-  const rows: string[][] = json.result?.list ?? [];
-
-  const candles: Candle[] = rows
-    .map((r) => ({
-      time: Number(r[0]),
-      open: Number(r[1]),
-      high: Number(r[2]),
-      low: Number(r[3]),
-      close: Number(r[4]),
-      volume: Number(r[5]),
-    }))
-    .reverse(); // oldest-first for easier structure analysis
-
-  return candles;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  throw lastError ?? new Error(`Bybit API error for ${symbol} ${timeframe}: unknown`);
 }
 
 export async function fetchAllTimeframes(symbol: string) {
