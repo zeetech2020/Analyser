@@ -6,7 +6,6 @@ import { formatSetupMessage } from "@/lib/telegram";
 import { SetupResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const preferredRegion = "sin1";
 export const maxDuration = 60; // scanning the full watchlist takes a while
 
 async function replyToTelegram(chatId: number | string, text: string) {
