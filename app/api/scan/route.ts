@@ -22,7 +22,7 @@ export async function GET() {
     } catch (err) {
       errors.push({ symbol, error: err instanceof Error ? err.message : String(err) });
     }
-    await new Promise((r) => setTimeout(r, 300)); 
+    
   }
 
   return NextResponse.json({
