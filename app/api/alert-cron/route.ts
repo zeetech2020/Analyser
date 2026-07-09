@@ -5,7 +5,7 @@ import { WATCHLIST } from "@/lib/watchlist";
 import { sendTelegramAlert, formatSetupMessage } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
-export const preferredRegion = "sin1";
+
 
 // Simple in-memory de-dupe won't survive across serverless invocations,
 // so we rely on a coarse rule: only alert once per symbol per detected
