@@ -3,15 +3,11 @@ import { fetchAllTimeframes } from "@/lib/bybit";
 import { evaluateSetup } from "@/lib/evaluate";
 import { WATCHLIST } from "@/lib/watchlist";
 import { sendTelegramAlert, formatSetupMessage } from "@/lib/telegram";
+import { saveScanResults } from "@/lib/cache";
+import { SetupResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-
-// Simple in-memory de-dupe won't survive across serverless invocations,
-// so we rely on a coarse rule: only alert once per symbol per detected
-// order-block timestamp. For a first version this is stored via a tiny
-// KV-free approach: encode last-alerted OB time in the response and log it.
-// (For persistence across cold starts, wire up Vercel KV later if needed.)
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   // Protect the cron endpoint so randoms can't trigger it / spam your Telegram
@@ -22,11 +18,13 @@ export async function GET(req: NextRequest) {
   }
 
   const alertsSent: string[] = [];
+  const results: SetupResult[] = [];
 
   for (const symbol of WATCHLIST) {
     try {
       const data = await fetchAllTimeframes(symbol);
       const result = evaluateSetup(symbol, data);
+      results.push(result);
 
       if (result.valid) {
         const message = formatSetupMessage(result);
@@ -36,11 +34,20 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       console.error(`Error scanning ${symbol}:`, err);
     }
-    
+  }
+
+  // Save this run's results (even if some symbols failed) so /validSetup and
+  // /formingSetup on Telegram can answer instantly from cache instead of
+  // re-scanning live every time someone sends a command.
+  try {
+    await saveScanResults(results);
+  } catch (err) {
+    console.error("Failed to cache scan results:", err);
   }
 
   return NextResponse.json({
     checkedAt: new Date().toISOString(),
     alertsSent,
+    cached: results.length,
   });
 }
