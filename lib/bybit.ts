@@ -46,13 +46,23 @@ export async function fetchKlines(
   return candles;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchAllTimeframes(symbol: string) {
-  const [weekly, daily, h4, h1, m30] = await Promise.all([
-    fetchKlines(symbol, "1w", 100),
-    fetchKlines(symbol, "1d", 150),
-    fetchKlines(symbol, "4h", 200),
-    fetchKlines(symbol, "1h", 200),
-    fetchKlines(symbol, "30m", 200),
-  ]);
+  // Sequential (not Promise.all) with small gaps — Bybit's CDN layer flags
+  // bursts of concurrent requests from the same IP with 403s, even though
+  // each request individually is valid. Spacing them out avoids that.
+  const weekly = await fetchKlines(symbol, "1w", 100);
+  await sleep(150);
+  const daily = await fetchKlines(symbol, "1d", 150);
+  await sleep(150);
+  const h4 = await fetchKlines(symbol, "4h", 200);
+  await sleep(150);
+  const h1 = await fetchKlines(symbol, "1h", 200);
+  await sleep(150);
+  const m30 = await fetchKlines(symbol, "30m", 200);
+
   return { weekly, daily, h4, h1, m30 };
 }
