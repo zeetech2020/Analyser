@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       console.error(`Error scanning ${symbol}:`, err);
     }
+    await new Promise((r) => setTimeout(r, 300)); 
   }
 
   return NextResponse.json({
