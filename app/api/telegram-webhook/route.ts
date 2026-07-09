@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllTimeframes } from "@/lib/bybit";
-import { evaluateSetup } from "@/lib/evaluate";
-import { WATCHLIST } from "@/lib/watchlist";
 import { formatSetupMessage } from "@/lib/telegram";
+import { loadScanResults } from "@/lib/cache";
 import { SetupResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // scanning the full watchlist takes a while
+export const maxDuration = 15; // just reading from cache now, should be fast
 
 async function replyToTelegram(chatId: number | string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -35,18 +33,14 @@ function formatFormingMessage(setup: SetupResult): string {
   ].join("\n");
 }
 
-async function runScan(): Promise<SetupResult[]> {
-  const results: SetupResult[] = [];
-  for (const symbol of WATCHLIST) {
-    try {
-      const data = await fetchAllTimeframes(symbol);
-      results.push(evaluateSetup(symbol, data));
-    } catch (err) {
-      console.error(`Error scanning ${symbol}:`, err);
-    }
-    await new Promise((r) => setTimeout(r, 300)); 
-  }
-  return results;
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins === 1) return "1 min ago";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return `${hours}h ago`;
 }
 
 export async function POST(req: NextRequest) {
@@ -72,27 +66,36 @@ export async function POST(req: NextRequest) {
 
   const command = text.trim().toLowerCase();
 
-  if (command === "/validsetup") {
-    const results = await runScan();
-    const valid = results.filter((r) => r.valid);
+  if (command === "/validsetup" || command === "/formingsetup") {
+    const cached = await loadScanResults();
 
-    if (valid.length === 0) {
-      await replyToTelegram(chatId, "No valid setups right now.");
-    } else {
-      for (const setup of valid) {
-        await replyToTelegram(chatId, formatSetupMessage(setup));
-      }
+    if (!cached) {
+      await replyToTelegram(
+        chatId,
+        "No scan data yet — the cron job hasn't completed a run. Try again in a few minutes."
+      );
+      return NextResponse.json({ ok: true });
     }
-  } else if (command === "/formingsetup") {
-    const results = await runScan();
-    // "Forming" = sweep detected but not (yet) a fully valid setup
-    const forming = results.filter((r) => r.sweep && !r.valid);
 
-    if (forming.length === 0) {
-      await replyToTelegram(chatId, "Nothing forming right now.");
+    const age = timeAgo(cached.scannedAt);
+
+    if (command === "/validsetup") {
+      const valid = cached.results.filter((r) => r.valid);
+      if (valid.length === 0) {
+        await replyToTelegram(chatId, `No valid setups right now. (as of ${age})`);
+      } else {
+        for (const setup of valid) {
+          await replyToTelegram(chatId, formatSetupMessage(setup));
+        }
+      }
     } else {
-      const lines = forming.map((s) => formatFormingMessage(s)).join("\n\n");
-      await replyToTelegram(chatId, lines);
+      const forming = cached.results.filter((r) => r.sweep && !r.valid);
+      if (forming.length === 0) {
+        await replyToTelegram(chatId, `Nothing forming right now. (as of ${age})`);
+      } else {
+        const lines = forming.map((s) => formatFormingMessage(s)).join("\n\n");
+        await replyToTelegram(chatId, `Forming setups (as of ${age}):\n\n${lines}`);
+      }
     }
   } else if (command === "/start" || command === "/help") {
     await replyToTelegram(
