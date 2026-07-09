@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
   const message = update?.message;
   const chatId = message?.chat?.id;
   const text: string | undefined = message?.text;
+  console.log("Incoming chatId:", chatId);
 
   if (!chatId || !text) {
     // Not a plain text message (could be an edited message, sticker, etc.) — ignore.
